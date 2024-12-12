@@ -6,15 +6,20 @@ from .naive_ECE import ECE_binAcc_em
 from scipy import integrate
 from scipy.special import beta as betafn
 from scipy.stats import beta as betafit
-import warnings
-import logging
+import mpmath
 
 def logit(s):
     s_clipped = np.clip(s, 1e-10, 1 - 1e-10)
-    return np.log(s_clipped / (1 - s_clipped))
+    if isinstance(s,np.ndarray):
+        return np.log(s_clipped / (1 - s_clipped))
+    else:
+        return mpmath.log(s_clipped / (1 - s_clipped))
 
 def sigmoid(s):
-    return 1/(1+np.exp(-s))
+    if isinstance(s,np.ndarray):
+        return 1/(1+np.exp(-s))
+    else:
+        return 1/(1+mpmath.exp(-s))
 
 def beta_prior(s,param):
     '''
@@ -23,7 +28,7 @@ def beta_prior(s,param):
     if isinstance(s,list):
         s = np.array(s)
     s_clipped = np.clip(s, 1e-10, 1 - 1e-10)
-    out = 1/(1+1/((math.exp(param[2]))*((s_clipped**param[0])/((1-s_clipped)**param[1]))))
+    out = 1/(1+1/((mpmath.exp(param[2]))*((s_clipped**param[0])/((1-s_clipped)**param[1]))))
     return out
 
 class beta_density:
@@ -55,7 +60,8 @@ def P_D_1_B(init_params,confidences, accuracies,prior):
             Ps_mean = Ps.mean()
             acc_in_bin = accuracies[i*mass_in_bin:(i+1)*mass_in_bin].mean()
             Ps_mean = prior(Ps_mean,init_params)
-            p_D_M_B = p_D_M_B + (1/math.exp((Ps[-1]-Ps[0])**0.1)) * math.exp(-((Ps_mean-acc_in_bin)**2))
+            p_D_M_B = p_D_M_B + math.exp(-((Ps_mean-acc_in_bin)**2))
+            #p_D_M_B = p_D_M_B + (1/math.exp((Ps[-1]-Ps[0])**0.1)) * math.exp(-((Ps_mean-acc_in_bin)**2))
 
         p_D_M = p_D_M + p_D_M_B
     return -p_D_M
@@ -70,34 +76,27 @@ def Maximum_likelihood_solution(confidences, accuracies, prior):
     return result.x
 
 def TCE_BMP_compute(prior,param,confidence_distribution,low_density_threshold=None):
+    mpmath.mp.dps = 15
     def f1(x):
         return confidence_distribution.compute(x)
     
     if low_density_threshold == None:
         division = 1.0
     else:
-        division,_ = integrate.quad(f1, 0, low_density_threshold)
+        division = mpmath.quad(f1, [0, low_density_threshold])
 
     def f2(x):
         return np.abs(prior(x,param) - x)*confidence_distribution.compute(x)/division
-    warnings.filterwarnings("error")
-    try:
-        if low_density_threshold == None:
-            result, error = integrate.quad(f2, 0, 1, epsabs=1e-6, epsrel=1e-6)
-        else:
-            result, error = integrate.quad(f2, 0, low_density_threshold, epsabs=1e-6, epsrel=1e-6)
-    except UserWarning as e:
-        logging.info("Wrong in integrate computing of TCE")
-        print(f"param of calibration curve: {param}")
-        print(f"param of confidence score {confidence_distribution.alpha,confidence_distribution.beta}")
-        if low_density_threshold == None:
-            result, error = integrate.quad(f2, 0, 1, epsabs=1e-6, epsrel=1e-6)
-        else:
-            result, error = integrate.quad(f2, 0, low_density_threshold, epsabs=1e-6, epsrel=1e-6)
-        raise SystemExit
+    
+    if low_density_threshold == None:
+        result = mpmath.quad(f2, [0,1])
+    else:
+        result = mpmath.quad(f2, [0,low_density_threshold])
+
+    result = float(mpmath.nstr(result,5))
     return result
 
-def TCE_BMP(confidences, accs, confidence_distribution = None,low_density_threshold = None):
+def TCE_BPM(confidences, accs, confidence_distribution = None,low_density_threshold = None):
     prior = beta_prior
     param = Maximum_likelihood_solution(confidences, accs,prior)
     if confidence_distribution == None:
@@ -122,9 +121,9 @@ def plot_Max_Min_Bands(x_list,y_list_list):
     min_line = min_line[index]
     max_line = max_line[index]
 
-    plt.plot(x_list, mean, linewidth = 4, label='Mean acc under binning', color='blue')
+    plt.plot(x_list, mean, linewidth = 4, label='HB\'s mean result (bins from 10 to 50)', color='green')
     # 绘制数据带
-    plt.fill_between(x_list, min_line, max_line, color='blue', alpha=0.2, label='Acc range (bins from 10 to 50)')
+    plt.fill_between(x_list, min_line, max_line, color='blue', alpha=0.2, label='HB\'s result range (bins from 10 to 50)')
 
     plt.xlabel('Confidence',fontname="Times New Roman",fontsize=30)
     #plt.ylabel('Accuracy',fontname="Times New Roman",fontsize=30)
@@ -197,7 +196,7 @@ def visual_fitting_effect():
     # plot true distribution and our method
     s = [0.+i/1000 for i in range(1000)]
     out = Ps_fit_fun.compute(s)
-    fig = plt.figure(figsize=(10,10))
+    fig = plt.figure(figsize=(11,10))
     plt.plot(s,out, linewidth = 3,label="True calibration curve")
     visual_TCE_BPM(confidences,y_list)
     plt.legend(prop={"family": "Times New Roman","size":30},framealpha=0.1,loc="upper left")

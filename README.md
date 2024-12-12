@@ -1,1 +1,2 @@
-Combining Priors with Experience: Estimating Calibration Curve Based on Binomial Process Modeling
+# Calibration_BPM
+Combining Priors with Experience: Confidence Calibration Based on Binomial Process Modeling

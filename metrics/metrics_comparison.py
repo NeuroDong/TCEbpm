@@ -1,7 +1,6 @@
-from .TCE_BPM import logit_logit,beta_density,generating_data_from_a_distribution,TCE_BMP
+from .TCE_BPM import logit_logit,beta_density,generating_data_from_a_distribution,TCE_BPM
 import matplotlib.pyplot as plt
 import numpy as np
-from scipy import integrate
 from .naive_ECE import ECE_LOSS_equal_mass
 from .ECE_sweep import CalibrationMetric
 from .Debaised_ECE import Debaised_ECE
@@ -9,21 +8,24 @@ from .KS_ECE import KS_error
 from .Smoothing_ECE import smECE_fast
 from .LS_ECE import logit_smoothed_ece
 import logging
+import mpmath
 
 def TCE_compute(true_function,confidence_distribution):
     def f(x):
         return np.abs(true_function.compute(x) - x)*confidence_distribution.compute(x)
-    try:
-        result, error = integrate.quad(f, 0, 1)
-        #warnings.warn("This is a warning", UserWarning)
-    except UserWarning as e:
-        print(confidence_distribution.alpha,confidence_distribution.beta)
-        raise SystemExit
+    
+    mpmath.mp.dps = 15
+    result = mpmath.quad(f,[0,1])
+    result = float(mpmath.nstr(result,5))
     return result
     
 def visual_error_comparation():
+    #D1
     Ps_fit_fun = logit_logit()
-    #sampling_nums = [i*500 for i in range(1,6)]
+    alpha = 1.1233
+    beta = 0.1147
+    confidence_disribution = beta_density(alpha,beta)
+
     sampling_nums = [i*500 for i in range(1,11)]
     TCE_list = [[] for i in range(len(sampling_nums))]
     ECE_bin_list = [[] for i in range(len(sampling_nums))]
@@ -33,10 +35,7 @@ def visual_error_comparation():
     Smooth_ECE_list = [[] for i in range(len(sampling_nums))]
     LS_ECE_list = [[] for i in range(len(sampling_nums))]
     Estimated_TCE_list = [[] for i in range(len(sampling_nums))]
-
-    alpha = 1.1233
-    beta = 0.1147
-    confidence_disribution = beta_density(alpha,beta)
+    
     TCE = TCE_compute(Ps_fit_fun,confidence_disribution)
     n_bins = 15
     run_num = 100
@@ -69,7 +68,7 @@ def visual_error_comparation():
             Ls_ECE = logit_smoothed_ece(confidences,y_list)
             LS_ECE_list[i].append(Ls_ECE)
 
-            TCE_bpm = TCE_BMP(confidences,y_list)
+            TCE_bpm = TCE_BPM(confidences,y_list)
             Estimated_TCE_list[i].append(TCE_bpm)
 
         logging.info(f"The {epoch}-th run is completed, with a total of {run_num} runs.")
