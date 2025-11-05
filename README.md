@@ -3,3 +3,6 @@
 
 # Calibration_BPM
 Code for papers published by AAAI 2025 main track: Combining Priors with Experience: Confidence Calibration Based on Binomial Process Modeling
+
+# Usage
+See [code_of_Figure1.ipynb](https://github.com/NeuroDong/TCEbpm/blob/main/code_of_Figure1.ipynb)
